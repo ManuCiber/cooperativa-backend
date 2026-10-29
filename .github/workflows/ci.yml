@@ -12,6 +12,20 @@ jobs:
   test:
     name: Complilar y probar microservicios
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: cooperativa_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d cooperativa_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Descargar el repositorio
         uses: actions/checkout@v4
@@ -32,15 +46,31 @@ jobs:
 
       - name: Probar Socio Service
         run: mvn -B -f pom.xml -pl microservices/socio-service -am verify
+        env:
+          DB_URL: jdbc:postgresql://localhost:5432/cooperativa_ci
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
 
       - name: Probar Cuentas Service
         run: mvn -B -f pom.xml -pl microservices/cuentas-service -am verify
+        env:
+          DB_URL: jdbc:postgresql://localhost:5432/cooperativa_ci
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
 
       - name: Probar Prestamo Service
         run: mvn -B -f pom.xml -pl microservices/prestamo-service -am verify
+        env:
+          DB_URL: jdbc:postgresql://localhost:5432/cooperativa_ci
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
 
       - name: Probar Configuration Service
         run: mvn -B -f pom.xml -pl microservices/configuration-service -am verify
 
       - name: Probar Usuarios Service
         run: mvn -B -f pom.xml -pl microservices/usuarios-service -am verify
+        env:
+          DB_URL: jdbc:postgresql://localhost:5432/cooperativa_ci
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
