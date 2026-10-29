@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CompilerConfiguration">
+    <annotationProcessing>
+      <profile default="true" name="Default" enabled="true" />
+      <profile name="Maven default annotation processors profile" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+      </profile>
+      <profile name="Annotation profile for cooperativa" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <processorPath useClasspath="false">
+          <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.46/lombok-1.18.46.jar" />
+        </processorPath>
+        <module name="config-server" />
+        <module name="socio-service" />
+        <module name="discovery-server" />
+        <module name="configuration-service" />
+        <module name="prestamo-service" />
+        <module name="api-gateway" />
+        <module name="usuarios-service" />
+        <module name="common-web" />
+        <module name="cuentas-service" />
+        <module name="microservices (1)" />
+      </profile>
+    </annotationProcessing>
+    <bytecodeTargetLevel target="24" />
+  </component>
+  <component name="JavacSettings">
+    <option name="ADDITIONAL_OPTIONS_OVERRIDE">
+      <module name="api-gateway" options="-parameters" />
+      <module name="common-web" options="-parameters" />
+      <module name="config-server" options="-parameters" />
+      <module name="configuration-service" options="-parameters" />
+      <module name="cooperativa" options="-parameters" />
+      <module name="cuentas-service" options="-parameters" />
+      <module name="discovery-server" options="-parameters" />
+      <module name="microservices" options="" />
+      <module name="prestamo-service" options="-parameters" />
+      <module name="socio-service" options="-parameters" />
+      <module name="usuarios-service" options="-parameters" />
+    </option>
+  </component>
+</project>

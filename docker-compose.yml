@@ -1,0 +1,220 @@
+services:
+  config-server:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+      args:
+        MODULE: config-server
+        MODULE_DIR: config-server
+    environment:
+      SERVER_PORT: 8888
+    ports:
+      - "8888:8888"
+
+  discovery-server:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+      args:
+        MODULE: discovery-server
+        MODULE_DIR: discovery-server
+    environment:
+      SERVER_PORT: 8761
+      EUREKA_INSTANCE_HOSTNAME: discovery-server
+      EUREKA_CLIENT_REGISTERWITHEUREKA: "false"
+      EUREKA_CLIENT_FETCHREGISTRY: "false"
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka/
+      EUREKA_SERVER_ENABLE_SELF_PRESERVATION: "false"
+    ports:
+      - "8761:8761"
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+      args:
+        MODULE: api-gateway
+        MODULE_DIR: api-gateway
+    depends_on:
+      - discovery-server
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka/
+      EUREKA_INSTANCE_PREFERIPADDRESS: "true"
+    ports:
+      - "8080:8080"
+
+  socio-service:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+      args:
+        MODULE: microservices/socio-service
+        MODULE_DIR: microservices/socio-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      discovery-server:
+        condition: service_started
+    environment:
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      DB_URL: jdbc:postgresql://postgres:5432/cooperativa_socios
+      DB_USERNAME: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: socios
+      SPRING_FLYWAY_ENABLED: "true"
+      SPRING_FLYWAY_CREATE_SCHEMAS: "true"
+      SPRING_FLYWAY_DEFAULT_SCHEMA: socios
+      SPRING_FLYWAY_SCHEMAS: socios
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka/
+      EUREKA_INSTANCE_PREFERIPADDRESS: "true"
+      SERVER_PORT: 8081
+    ports:
+      - "8081:8081"
+
+  cuentas-service:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+      args:
+        MODULE: microservices/cuentas-service
+        MODULE_DIR: microservices/cuentas-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      discovery-server:
+        condition: service_started
+    environment:
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      DB_URL: jdbc:postgresql://postgres:5432/cooperativa_cuentas
+      DB_USERNAME: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: cuentas
+      SPRING_FLYWAY_ENABLED: "true"
+      SPRING_FLYWAY_CREATE_SCHEMAS: "true"
+      SPRING_FLYWAY_DEFAULT_SCHEMA: cuentas
+      SPRING_FLYWAY_SCHEMAS: cuentas
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka/
+      EUREKA_INSTANCE_PREFERIPADDRESS: "true"
+      SERVER_PORT: 8082
+    ports:
+      - "8082:8082"
+
+  prestamo-service:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+      args:
+        MODULE: microservices/prestamo-service
+        MODULE_DIR: microservices/prestamo-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      discovery-server:
+        condition: service_started
+    environment:
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      DB_URL: jdbc:postgresql://postgres:5432/cooperativa_prestamos
+      DB_USERNAME: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: prestamos
+      SPRING_FLYWAY_ENABLED: "true"
+      SPRING_FLYWAY_CREATE_SCHEMAS: "true"
+      SPRING_FLYWAY_DEFAULT_SCHEMA: prestamos
+      SPRING_FLYWAY_SCHEMAS: prestamos
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka/
+      EUREKA_INSTANCE_PREFERIPADDRESS: "true"
+      SERVER_PORT: 8083
+    ports:
+      - "8083:8083"
+
+  usuarios-service:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+      args:
+        MODULE: microservices/usuarios-service
+        MODULE_DIR: microservices/usuarios-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      discovery-server:
+        condition: service_started
+    environment:
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      DB_URL: jdbc:postgresql://postgres:5432/cooperativa_usuarios
+      DB_USERNAME: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: usuarios
+      SPRING_FLYWAY_ENABLED: "true"
+      SPRING_FLYWAY_CREATE_SCHEMAS: "true"
+      SPRING_FLYWAY_DEFAULT_SCHEMA: usuarios
+      SPRING_FLYWAY_SCHEMAS: usuarios
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka/
+      EUREKA_INSTANCE_PREFERIPADDRESS: "true"
+      SERVER_PORT: 8084
+    ports:
+      - "8084:8084"
+
+  configuration-service:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+      args:
+        MODULE: microservices/configuration-service
+        MODULE_DIR: microservices/configuration-service
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      discovery-server:
+        condition: service_started
+    environment:
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      MONGODB_URI: mongodb://mongodb:27017/cooperativa_config
+      CONFIG_ADMIN_USERNAME: ${CONFIG_ADMIN_USERNAME:?Set CONFIG_ADMIN_USERNAME}
+      CONFIG_ADMIN_PASSWORD: ${CONFIG_ADMIN_PASSWORD:?Set CONFIG_ADMIN_PASSWORD}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka/
+      EUREKA_INSTANCE_PREFERIPADDRESS: "true"
+      SERVER_PORT: 8085
+    ports:
+      - "8085:8085"
+
+  mongodb:
+    image: mongo:8.0
+    environment:
+      MONGO_INITDB_DATABASE: cooperativa_config
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  mongodb-data:
+  postgres-data:

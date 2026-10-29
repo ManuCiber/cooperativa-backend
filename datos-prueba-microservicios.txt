@@ -1,0 +1,458 @@
+DATOS Y CASOS DE PRUEBA - COOPERATIVA-MS
+========================================
+
+Proposito
+---------
+Pruebas manuales de los endpoints REST usando Postman, Insomnia o curl.
+Los datos son ficticios. Ejecutar solamente contra un entorno local/de pruebas.
+Las operaciones POST y PATCH guardan datos; no ejecutar sobre produccion.
+
+Preparacion
+-----------
+1. En PowerShell, definir credenciales de prueba para configuration-service y
+   levantar la plataforma desde la raiz del proyecto:
+
+   $env:CONFIG_ADMIN_USERNAME = "admin-pruebas"
+   $env:CONFIG_ADMIN_PASSWORD = "Prueba-Local-2026!"
+   docker compose up --build -d
+
+   Si usa un archivo .env en vez de variables de entorno, use los mismos valores
+   para las pruebas autenticadas de configuration-service.
+
+2. En Postman, seleccionar Body > raw > JSON y enviar Content-Type:
+   application/json.
+
+3. Probar los servicios directamente en estos puertos:
+   socio-service          http://localhost:8081
+   cuentas-service        http://localhost:8082
+   prestamo-service       http://localhost:8083
+   usuarios-service       http://localhost:8084
+   configuration-service  http://localhost:8085
+
+4. Los IDs son generados por la aplicacion. Despues de cada POST, copiar el ID
+   de la respuesta en las solicitudes siguientes donde aparezca {{...Id}}.
+   No asumir que los IDs empiezan en 1.
+
+5. Para repetir las pruebas, cambiar los valores unicos de DNI, email, numero
+   de cuenta y nombre del producto, o usar una base de datos de prueba limpia.
+
+Orden recomendado
+-----------------
+1. Socio y directiva.
+2. Cuentas: cuentas, aportacion, transaccion y ahorro programado.
+3. Prestamos: producto financiero, prestamo, garantia y cuota.
+4. Usuarios: empleado.
+5. Configuration-service.
+
+Las referencias entre servicios (por ejemplo, socioId) son identificadores de
+prueba: los servicios mantienen sus propias bases y no todos verifican que el
+registro relacionado exista en otro servicio.
+
+
+1. SOCIO-SERVICE (puerto 8081)
+==============================
+
+Caso S-01 - Crear socio
+POST http://localhost:8081/api/socios
+
+{
+  "nombre": "Ana",
+  "apellidos": "Prueba Cooperativa",
+  "dni_cedula": "PRUEBA-SOCIO-001",
+  "fecha_nacimiento": "1990-05-15",
+  "direccion": "Calle de Prueba 123",
+  "telefono": "8095550101",
+  "tipoSocio": "REGULAR",
+  "email": "ana.prueba.001@example.test"
+}
+
+Esperado: HTTP 201. Guardar socioId de la respuesta como {{socioId}}.
+Comprobar que nombre, apellidos y tipo_socio coincidan con la solicitud.
+
+Caso S-02 - Listar socios
+GET http://localhost:8081/api/socios
+Esperado: HTTP 200; la lista incluye el socio creado.
+
+Caso S-03 - Consultar socio creado
+GET http://localhost:8081/api/socios/{{socioId}}
+Esperado: HTTP 200; socioId coincide con {{socioId}}.
+
+Caso S-04 - Validacion de socio incompleto
+POST http://localhost:8081/api/socios
+{
+  "nombre": "",
+  "apellidos": "",
+  "dni_cedula": "",
+  "tipoSocio": "REGULAR",
+  "email": "invalido@example.test"
+}
+Esperado: HTTP 400; no se crea otro socio.
+
+
+2. SOCIO-SERVICE: DIRECTIVA (puerto 8081)
+=========================================
+
+Caso D-01 - Crear directiva para el socio de prueba
+POST http://localhost:8081/api/directivas
+
+{
+  "socioId": {{socioId}},
+  "cargo": "Tesorera de prueba",
+  "fecha_inicio": "2026-01-01",
+  "fecha_final": "2027-12-31",
+  "estado": "ACTIVO"
+}
+
+Esperado: HTTP 201. Guardar directivaId como {{directivaId}}.
+Nota: en JSON, {{socioId}} debe reemplazarse por un numero, sin comillas.
+
+Caso D-02 - Listar directivas activas
+GET http://localhost:8081/api/directivas
+Esperado: HTTP 200; aparece la directiva activa.
+
+Caso D-03 - Consultar directiva
+GET http://localhost:8081/api/directivas/{{directivaId}}
+Esperado: HTTP 200; socioId es {{socioId}} y estado es ACTIVO.
+
+Caso D-04 - Referencia inexistente
+POST http://localhost:8081/api/directivas
+{
+  "socioId": 999999999,
+  "cargo": "Cargo inexistente",
+  "fecha_inicio": "2026-01-01",
+  "estado": "ACTIVO"
+}
+Esperado: HTTP 404; el socio relacionado no existe.
+
+
+3. CUENTAS-SERVICE (puerto 8082)
+================================
+
+Caso C-01 - Crear cuenta de prueba
+POST http://localhost:8082/api/cuentas
+
+{
+  "socioId": {{socioId}},
+  "numeroCuenta": "PRUEBA-CUENTA-001",
+  "tipoCuenta": "AHORRO_ORDINARIO",
+  "fecha_apertura": "2026-10-17",
+  "saldo_actual": 5000.00,
+  "estado": "ACTIVO"
+}
+
+Esperado: HTTP 201. Guardar id de respuesta como {{cuentaId}}.
+
+Caso C-02 - Consultar cuentas
+GET http://localhost:8082/api/cuentas
+GET http://localhost:8082/api/cuentas/{{cuentaId}}
+Esperado: HTTP 200; cuentaId, socioId y numeroCuenta corresponden a los datos.
+
+Caso C-03 - Registrar aportacion
+POST http://localhost:8082/api/aportaciones
+
+{
+  "socioId": {{socioId}},
+  "monto": 750.00,
+  "tipo_aportacion": "ORDINARIA",
+  "fecha_aportacion": "2026-10-17T09:00:00"
+}
+
+Esperado: HTTP 201. Guardar aportacionId como {{aportacionId}}.
+
+Caso C-04 - Consultar y aplicar aportacion pendiente
+GET http://localhost:8082/api/aportaciones/{{aportacionId}}
+PATCH http://localhost:8082/api/aportaciones/{{aportacionId}}/aplicar
+GET http://localhost:8082/api/aportaciones?socioId={{socioId}}
+Esperado: HTTP 200 en cada solicitud; despues de aplicar, estado es APLICADA.
+
+Caso C-05 - Registrar deposito
+POST http://localhost:8082/api/transacciones
+
+{
+  "cuentaId": {{cuentaId}},
+  "tipo_transaccion": "DEPOSITO",
+  "monto": 1250.00,
+  "fecha": "2026-10-17T09:15:00",
+  "descripcion": "Deposito de prueba"
+}
+
+Esperado: HTTP 201. Guardar transaccionId como {{transaccionId}}.
+El saldo esperado de la cuenta es 6250.00.
+
+Caso C-06 - Consultar transaccion
+GET http://localhost:8082/api/transacciones/{{transaccionId}}
+GET http://localhost:8082/api/transacciones?socioId={{socioId}}
+Esperado: HTTP 200; la transaccion y el deposito aparecen en las respuestas.
+
+Caso C-07 - Crear ahorro programado
+POST http://localhost:8082/api/ahorros-programados
+
+{
+  "socioId": {{socioId}},
+  "cuentaId": {{cuentaId}},
+  "monto_periodico": 250.00,
+  "periodicidad": "MENSUAL",
+  "fecha_inicio": "2026-10-18T09:00:00",
+  "fecha_fin": "2027-10-18T09:00:00",
+  "estado": "ACTIVO"
+}
+
+Esperado: HTTP 201. Guardar ahorroId como {{ahorroId}}.
+
+Caso C-08 - Consultar y cancelar ahorro programado
+GET http://localhost:8082/api/ahorros-programados/{{ahorroId}}
+PATCH http://localhost:8082/api/ahorros-programados/{{ahorroId}}/cancelar
+Esperado: HTTP 200; el estado final del ahorro es CANCELADO.
+
+Caso C-09 - Saldo insuficiente (validacion negativa)
+POST http://localhost:8082/api/transacciones
+
+{
+  "cuentaId": {{cuentaId}},
+  "tipo_transaccion": "RETIRO",
+  "monto": 999999.00,
+  "descripcion": "Prueba de saldo insuficiente"
+}
+
+Esperado: HTTP 409; el saldo no debe quedar negativo.
+
+
+4. PRESTAMO-SERVICE (puerto 8083)
+=================================
+
+Caso P-01 - Crear producto financiero
+POST http://localhost:8083/api/productos-financieros
+
+{
+  "nombre": "Producto de prueba 001",
+  "descripcion": "Producto para validar el ciclo de prestamos",
+  "tasaInteres": 12.50,
+  "plazoMinimo": 6,
+  "plazoMaximo": 36,
+  "montoMinimo": 1000.00,
+  "montoMaximo": 100000.00,
+  "estado": "ACTIVO"
+}
+
+Esperado: HTTP 201. Guardar id como {{productoId}}.
+
+Caso P-02 - Consultar producto activo
+GET http://localhost:8083/api/productos-financieros?estado=ACTIVO
+GET http://localhost:8083/api/productos-financieros/{{productoId}}
+Esperado: HTTP 200; el producto aparece como ACTIVO.
+
+Caso P-03 - Crear prestamo dentro de los limites del producto
+POST http://localhost:8083/api/prestamos
+
+{
+  "socioId": {{socioId}},
+  "productoId": {{productoId}},
+  "monto_solicitado": 25000.00,
+  "tasa_interes": 12.50,
+  "plazo_meses": 12
+}
+
+Esperado: HTTP 201. Guardar prestamoId como {{prestamoId}}.
+El estado inicial esperado es SOLICITADO.
+
+Caso P-04 - Consultar prestamo
+GET http://localhost:8083/api/prestamos
+GET http://localhost:8083/api/prestamos/{{prestamoId}}
+Esperado: HTTP 200; el prestamo corresponde al producto y socio usados.
+
+Caso P-05 - Crear garantia para el prestamo
+POST http://localhost:8083/api/garantias
+
+{
+  "prestamo_id": {{prestamoId}},
+  "tipo_garantia": "AVAL_PERSONAL",
+  "valor_estimado": 30000.00,
+  "documentacion": "DOCUMENTO-PRUEBA-001"
+}
+
+Esperado: HTTP 201. Guardar garantia_id como {{garantiaId}}.
+
+Caso P-06 - Consultar garantia
+GET http://localhost:8083/api/garantias/{{garantiaId}}
+GET http://localhost:8083/api/garantias/prestamo/{{prestamoId}}
+Esperado: HTTP 200; la garantia queda asociada al prestamo.
+
+Caso P-07 - Crear cuota pendiente
+POST http://localhost:8083/api/pago-prestamo
+
+{
+  "prestamoId": {{prestamoId}},
+  "numeroCuota": 1,
+  "montoCuota": 1000.00,
+  "montoInteres": 0.50,
+  "fechaVencimiento": "2026-12-01"
+}
+
+Esperado: HTTP 201. Guardar pagoId como {{pagoId}}; estado inicial PENDIENTE.
+El interes se deja en 0.50 para cumplir la validacion vigente del servicio.
+
+Caso P-08 - Registrar el pago
+GET http://localhost:8083/api/pago-prestamo/{{pagoId}}
+PATCH http://localhost:8083/api/pago-prestamo/{{pagoId}}/pagar
+GET http://localhost:8083/api/pago-prestamo/prestamo/{{prestamoId}}
+Esperado: HTTP 200; el estado final de la cuota es PAGADO y fechaPago no es nula.
+
+Caso P-09 - Rechazar monto fuera de los limites del producto
+POST http://localhost:8083/api/prestamos
+
+{
+  "socioId": {{socioId}},
+  "productoId": {{productoId}},
+  "monto_solicitado": 500000.00,
+  "tasa_interes": 12.50,
+  "plazo_meses": 12
+}
+
+Esperado: HTTP 400; el monto excede el maximo de 100000.00.
+
+
+5. USUARIOS-SERVICE (puerto 8084)
+=================================
+
+Caso U-01 - Crear empleado
+POST http://localhost:8084/api/empleados
+
+{
+  "nombre": "Carlos",
+  "apellidos": "Empleado Prueba",
+  "dniCedula": "PRUEBA-EMPLEADO-001",
+  "cargo": "Analista de pruebas",
+  "departamento": "Tecnologia",
+  "fechaContratacion": "2026-10-01T08:00:00",
+  "salario": 45000.00,
+  "estado": "ACTIVO"
+}
+
+Esperado: HTTP 201. Guardar empleadoId como {{empleadoId}}.
+
+Caso U-02 - Listar y consultar empleado
+GET http://localhost:8084/api/empleados
+GET http://localhost:8084/api/empleados/{{empleadoId}}
+Esperado: HTTP 200; DNI, nombre y cargo corresponden a los datos enviados.
+
+Caso U-03 - DNI duplicado (validacion negativa)
+POST http://localhost:8084/api/empleados
+
+{
+  "nombre": "Otro",
+  "apellidos": "Empleado Prueba",
+  "dniCedula": "PRUEBA-EMPLEADO-001",
+  "cargo": "Analista",
+  "departamento": "Tecnologia",
+  "salario": 40000.00,
+  "estado": "ACTIVO"
+}
+
+Esperado: HTTP 409; el DNI ya esta registrado.
+
+
+6. CONFIGURATION-SERVICE (puerto 8085)
+======================================
+
+Autenticacion:
+En Postman, Authorization > Basic Auth. Usar el mismo CONFIG_ADMIN_USERNAME y
+CONFIG_ADMIN_PASSWORD configurado antes de iniciar Docker Compose.
+Los GET de la configuracion activa son publicos; POST, PATCH e historial
+requieren el usuario administrador.
+
+Caso F-01 - Inicializar configuracion (solo una vez, en base limpia)
+POST http://localhost:8085/api/v1/configuracion
+
+{
+  "general": {
+    "cooperativeName": "Cooperativa de Prueba",
+    "rnc": "131000001",
+    "phone": "8095550199",
+    "address": "Avenida de Prueba 100",
+    "mandatoryMonthlyContribution": 100.00,
+    "currency": "DOP"
+  },
+  "loanPolicies": {
+    "defaultLateInterestRate": 2.50,
+    "graceDays": 5,
+    "maxPersonalLoanAmount": 100000.00,
+    "maxMicroCreditAmount": 25000.00
+  },
+  "notifications": {
+    "overduePayments": true,
+    "newRequests": true,
+    "pendingContributions": false,
+    "weeklyReports": false
+  }
+}
+
+Esperado: HTTP 201; la respuesta contiene general, loanPolicies y notifications.
+Si ya existe una configuracion activa, el servicio responde HTTP 409; no repetir
+esta inicializacion y continuar con F-02.
+
+Caso F-02 - Consultar configuracion activa
+GET http://localhost:8085/api/v1/configuracion
+Esperado: HTTP 200; cooperativeName es "Cooperativa de Prueba" si se ejecuto F-01.
+
+Caso F-03 - Actualizar datos generales (Basic Auth)
+PATCH http://localhost:8085/api/v1/configuracion/general
+{
+  "phone": "8095550100",
+  "currency": "DOP"
+}
+Esperado: HTTP 200; phone queda actualizado y los otros campos se conservan.
+
+Caso F-04 - Actualizar politica de prestamos (Basic Auth)
+PATCH http://localhost:8085/api/v1/configuracion/politicas-prestamo
+{
+  "defaultLateInterestRate": 3.00,
+  "graceDays": 7
+}
+Esperado: HTTP 200; se actualizan ambos campos de loanPolicies.
+
+Caso F-05 - Actualizar notificaciones (Basic Auth)
+PATCH http://localhost:8085/api/v1/configuracion/notificaciones
+{
+  "overduePayments": false,
+  "weeklyReports": true
+}
+Esperado: HTTP 200; false es un valor valido y se conserva como tal.
+
+Caso F-06 - Consultar historial (Basic Auth)
+GET http://localhost:8085/api/v1/configuracion/historial?page=0&size=10
+Esperado: HTTP 200; el historial incluye CREATE y los cambios realizados arriba.
+
+Caso F-07 - Rechazar parche vacio (Basic Auth)
+PATCH http://localhost:8085/api/v1/configuracion/general
+{}
+Esperado: HTTP 400; no se guarda una actualizacion vacia.
+
+
+Verificacion opcional a traves del API Gateway
+==============================================
+
+Repetir una consulta GET ya probada usando el puerto 8080 para verificar el
+enrutamiento del Gateway y el registro en Eureka. Por ejemplo:
+
+GET http://localhost:8080/api/socios
+GET http://localhost:8080/api/cuentas
+GET http://localhost:8080/api/prestamos
+GET http://localhost:8080/api/empleados
+GET http://localhost:8080/api/v1/configuracion
+
+Esperado: HTTP 200 y las mismas respuestas que al llamar al servicio directamente.
+
+
+Resumen de codigos esperados
+============================
+
+201 - Creacion correcta: POST de socios, directivas, cuentas, aportaciones,
+      productos, prestamos, garantias, cuotas, empleados y configuracion inicial.
+200 - Consultas y actualizaciones correctas.
+400 - Datos invalidos o reglas de negocio incumplidas.
+404 - ID o recurso relacionado inexistente.
+409 - Conflicto de negocio, por ejemplo duplicados, saldo insuficiente o
+      inicializacion repetida.
+
+Resultado: marcar cada caso como [ ] Pendiente, [x] Correcto o [!] Fallido.
+Guardar el cuerpo de respuesta de cada caso fallido junto con el servicio y URL.

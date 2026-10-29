@@ -1,0 +1,38 @@
+REVISION TECNICA - COOPERATIVA-MS
+Fecha: 21/10/2026
+
+RESUMEN
+La compilacion completa del reactor Maven sigue bloqueada en el modulo common-web. El error ocurre durante el procesamiento de anotaciones de Lombok con JDK 27, antes de compilar los demas modulos. Por tanto, las pruebas y compilaciones de los servicios restantes no se pudieron verificar. La configuracion de Java 27 en Maven, GitHub Actions y Docker esta ahora alineada; la discrepancia de Java 21 anotada en la revision anterior ya no aparece en los archivos revisados.
+
+1. ERROR BLOQUEANTE DE COMPILACION: LOMBOK CON JDK 27
+Modulo: common-web.
+Evidencia al ejecutar el Maven Wrapper desde el proyecto:
+  Fatal error compiling: java.lang.ExceptionInInitializerError: com.sun.tools.javac.tree.EndPosTable
+El fallo ocurre al compilar los 3 archivos fuente de common-web y se repite al ejecutar la compilacion desde IntelliJ. Maven omite los modulos posteriores, asi que no se puede concluir si estos compilan o si sus pruebas pasan.
+Accion sugerida: identificar la version efectiva de Lombok y actualizarla a una version compatible con JDK 27; luego repetir la compilacion y las pruebas del reactor completo.
+
+2. RIESGO DE VERSIONES DE SPRING BOOT Y SPRING CLOUD DIFERENTES
+Archivos:
+  - pom.xml declara Spring Boot 4.1.0 como parent del proyecto raiz.
+  - microservices/pom.xml declara Spring Boot 4.1.1 para los servicios bajo ese agregador.
+  - microservices/pom.xml y varios POM de servicios usan Spring Cloud 2025.1.2; api-gateway, cuentas-service y prestamo-service declaran 2025.1.3.
+No se pudo determinar si esas combinaciones producen fallos en ejecucion porque la compilacion se detiene antes de llegar a esos modulos. Mantener versiones distintas aumenta el riesgo de dependencias transitivas incompatibles y de diferencias de comportamiento. Se recomienda centralizar y alinear las versiones de Spring Boot y Spring Cloud segun la matriz de compatibilidad correspondiente.
+
+3. PROPIEDAD DE CONFIGURACION MARCADA COMO OBSOLETA
+Archivo: microservices/configuration-service/src/main/resources/application.properties, linea 3.
+La inspeccion de IntelliJ reporta `spring.data.mongodb.uri` como propiedad obsoleta. Confirmar la propiedad correcta para la version efectiva de Spring Boot y cambiarla si aplica. Es una advertencia del IDE, no un fallo confirmado de ejecucion.
+
+4. ADVERTENCIA DE API DEPRECADA EN LA COMPILACION
+Durante la compilacion fallida, el compilador reporto que `sun.misc.Unsafe.objectFieldOffset` esta terminalmente obsoleto y que `lombok.permit.Permit` lo invoca. Este mensaje no es el error fatal, pero apoya revisar/actualizar Lombok para JDK 27.
+
+CONFIGURACION DE JAVA REVISADA
+  - pom.xml y microservices/pom.xml establecen java.version = 27.
+  - .github/workflows/ci.yml configura Java 27.
+  - docker/app.Dockerfile utiliza imagen Maven con Eclipse Temurin 27 para construir y Eclipse Temurin 27 para ejecutar.
+La discrepancia anterior con Java 21 parece resuelta. Las etiquetas de imagen Java 27 no se comprobaron mediante una descarga/construccion Docker; la configuracion YAML de Compose si fue validada.
+
+VALIDACIONES Y LIMITACIONES
+- Se ejecuto el Maven Wrapper: `api-gateway\mvnw.cmd -B -f pom.xml test`. El reactor fallo en common-web con el error del punto 1; los modulos y pruebas siguientes quedaron sin validar.
+- La compilacion de IntelliJ reporta el mismo error y una advertencia de propiedad MongoDB obsoleta.
+- `docker compose config --quiet` finalizo correctamente al suministrar valores de prueba para CONFIG_ADMIN_USERNAME y CONFIG_ADMIN_PASSWORD. Sin esas variables requeridas, Compose informa que faltan valores; esto es intencional segun la configuracion de configuration-service.
+- Maven no esta instalado en el PATH; se utilizo el Maven Wrapper incluido en api-gateway.

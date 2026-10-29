@@ -1,0 +1,181 @@
+GUIA: CENTRALIZAR EL MANEJADOR GLOBAL DE EXCEPCIONES
+====================================================
+
+Estado
+------
+
+Esta arquitectura ya esta implementada en el repositorio. El modulo
+common-web, agregado en la raiz, mantiene una sola implementacion del formato
+de error y del manejador global, y todos los servicios Spring dependen de el.
+Los pasos siguientes describen la estructura resultante y sirven como lista
+para revisarla o reproducirla.
+
+Los microservicios siguen siendo aplicaciones independientes. Por eso cada
+aplicacion registra el componente compartido, pero el codigo fuente del
+manejador y del DTO se mantiene en un solo modulo Maven.
+
+Estructura propuesta
+--------------------
+
+common-web/
+  pom.xml
+  src/main/java/com/manudev/cooperativa/commonweb/
+    ApiErrorResponse.java
+    CommonWebAutoConfiguration.java
+    GlobalExceptionHandler.java
+microservices/
+  pom.xml
+  socio-service/
+  cuentas-service/
+  prestamo-service/
+
+1. Crear el modulo Maven common-web
+-----------------------------------
+
+Crea la carpeta y el archivo:
+
+  microservices/common-web/pom.xml
+
+Usa como parent el POM agregador microservices:
+
+  <parent>
+      <groupId>com.manudev</groupId>
+      <artifactId>microservices</artifactId>
+      <version>0.0.1-SNAPSHOT</version>
+      <relativePath>../pom.xml</relativePath>
+  </parent>
+
+Define en el modulo:
+
+  <artifactId>common-web</artifactId>
+  <packaging>jar</packaging>
+
+Declara las dependencias requeridas por las clases comunes:
+
+  - spring-boot-starter-webmvc
+  - spring-boot-starter-validation
+
+Utiliza las mismas versiones de Spring Boot y Java que el agregador. Evita
+declarar versiones diferentes del framework en los microservicios.
+
+2. Agregar common-web al agregador
+----------------------------------
+
+En pom.xml, dentro de <modules>, agrega common-web antes que las aplicaciones:
+
+  <modules>
+      <module>common-web</module>
+      <module>socio-service</module>
+      <module>cuentas-service</module>
+      <module>prestamo-service</module>
+  </modules>
+
+3. Mover las clases compartidas
+-------------------------------
+
+Elige un paquete estable que no dependa del package de un servicio. Por ejemplo:
+
+  com.manudev.cooperativa.commonweb
+
+Mueve ApiErrorResponse y GlobalExceptionHandler a ese package y al source set
+de common-web. El manejador debe conservar los tratamientos de:
+
+  - ResponseStatusException, respetando su codigo HTTP y mensaje.
+  - Errores de validacion, con detalle por campo.
+  - Solicitudes mal formadas, parametros faltantes o tipos invalidos (400).
+  - Metodo HTTP no permitido (405).
+  - Ruta o recurso inexistente (404).
+  - Restricciones de integridad de base de datos (409).
+  - Excepciones inesperadas (500), registradas en logs sin revelar detalles
+    internos al cliente.
+
+Mantén un solo ApiErrorResponse y un solo GlobalExceptionHandler en common-web.
+
+4. Añadir common-web como dependencia
+-------------------------------------
+
+En los POM de socio-service, cuentas-service y prestamo-service agrega:
+
+  <dependency>
+      <groupId>com.manudev</groupId>
+      <artifactId>common-web</artifactId>
+      <version>${project.version}</version>
+  </dependency>
+
+Comprueba que groupId/version coincidan con los del modulo common-web y el POM
+agregador. Si las coordenadas difieren, usa las definidas realmente en el POM.
+
+5. Registrar el manejador automaticamente
+------------------------------------------
+
+CommonWebAutoConfiguration importa GlobalExceptionHandler y se registra desde
+common-web/src/main/resources/META-INF/spring/
+org.springframework.boot.autoconfigure.AutoConfiguration.imports.
+Spring Boot carga la configuracion automaticamente cuando la dependencia esta
+en el classpath; no hace falta cambiar las clases principales de las
+aplicaciones.
+
+GlobalExceptionHandler es @RestControllerAdvice para aplicaciones MVC y
+WebExceptionHandler para manejar errores del gateway WebFlux. ApiErrorResponse
+es el formato JSON comun. En controllers y servicios conserva las excepciones
+de dominio y ResponseStatusException; el manejador produce la respuesta HTTP.
+
+6. Compilar y probar desde el agregador
+---------------------------------------
+
+Ejecuta desde la raiz del proyecto:
+
+  mvn -pl socio-service -am test
+  mvn -pl cuentas-service -am test
+  mvn -pl prestamo-service -am test
+
+La opción -am incluye los modulos requeridos, incluido common-web.
+
+Prueba al menos:
+
+  - Una excepcion 404 creada por ResponseStatusException.
+  - Una solicitud con campos inválidos (400).
+  - Una ruta inexistente (404).
+  - Un error inesperado (500), comprobando que su detalle no se filtre.
+
+7. Actualizar Docker
+-------------------
+
+El Dockerfile compartido ya empaqueta cada servicio desde el POM de la raiz e
+incluye common-web con -am. El argumento MODULE indica el artefacto solicitado:
+
+  mvn -f pom.xml -pl socio-service -am -DskipTests package
+
+Para cuentas y prestamos se usan los selectores cuentas-service y
+prestamo-service. El Dockerfile copia el JAR del servicio de MODULE_DIR, no el
+JAR de common-web. Verifica la construcción con:
+
+  docker compose config --quiet
+  docker compose build
+
+Comprueba también que el Docker build context incluya microservices/common-web.
+
+8. Actualizar CI de GitHub Actions
+----------------------------------
+
+Los pasos Maven del pipeline deben compilar cada servicio con sus dependencias:
+
+  mvn -B -f pom.xml -pl socio-service -am verify
+  mvn -B -f pom.xml -pl cuentas-service -am verify
+  mvn -B -f pom.xml -pl prestamo-service -am verify
+
+De esta forma common-web se construye antes que cada servicio y no hace falta
+publicar el JAR compartido en un repositorio Maven externo.
+
+Lista final de verificacion
+---------------------------
+
+[x] Existe common-web en los modulos Maven.
+[x] El DTO y el manejador existen una sola vez en common-web.
+[x] Los servicios Spring dependen de common-web.
+[x] Las aplicaciones registran el manejador automaticamente.
+[x] Se eliminaron las copias anteriores del manejador/DTO.
+[ ] Los servicios conservan los codigos y mensajes de sus excepciones de dominio.
+[ ] Compilan y pasan sus pruebas desde el agregador Maven.
+[x] Docker Compose compila cada servicio desde el agregador Maven e incluye common-web.
+[ ] GitHub Actions ejecuta verify con -am para los tres servicios.

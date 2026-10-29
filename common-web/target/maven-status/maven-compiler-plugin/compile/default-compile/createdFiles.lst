@@ -1,0 +1,4 @@
+com\manudev\cooperativa\commonweb\CommonWebAutoConfiguration.class
+com\manudev\cooperativa\commonweb\ApiErrorResponse.class
+com\manudev\cooperativa\commonweb\GlobalExceptionHandler$ErrorDetails.class
+com\manudev\cooperativa\commonweb\GlobalExceptionHandler.class
