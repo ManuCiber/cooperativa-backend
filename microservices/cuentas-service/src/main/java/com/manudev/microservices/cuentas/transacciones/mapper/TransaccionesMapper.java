@@ -17,7 +17,7 @@ public class TransaccionesMapper {
 
     public TransaccionesResponse toResponse(Transacciones transaction) {
         return TransaccionesResponse.builder()
-                .transaccionId(transaction.getTransaccion_id())
+                .transaccionId(transaction.getTransaccionId())
                 .realizadaPorUsuarioId(transaction.getRealizadaPorUsuarioId())
                 .cuentaId(transaction.getCuenta().getId())
                 .socioId(transaction.getSocioId()).socioDestinoId(transaction.getSocioDestinoId())

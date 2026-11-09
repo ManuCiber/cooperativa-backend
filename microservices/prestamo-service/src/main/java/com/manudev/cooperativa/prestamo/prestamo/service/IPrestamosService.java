@@ -9,4 +9,6 @@ public interface IPrestamosService {
     PrestamosResponse getPrestamoById(Long id);
     PrestamosResponse updatePrestamo(Long id, PrestamosRequest request);
     PrestamosResponse cancelarPrestamo(Long id);
+    PrestamosResponse aprobarPrestamo(Long id, java.math.BigDecimal montoAprobado);
+    PrestamosResponse desembolsarPrestamo(Long id);
 }

@@ -77,7 +77,7 @@ public class TransaccionesServiceImpl implements ITransaccionesService {
 
     @Override
     public List<TransaccionesResponse> getTransacciones() {
-        return transaccionesRepository.findAll(Sort.by(Sort.Direction.DESC, "fecha", "transaccion_id"))
+        return transaccionesRepository.findAll(Sort.by(Sort.Direction.DESC, "fecha", "transaccionId"))
                 .stream().map(mapper::toResponse).toList();
     }
 

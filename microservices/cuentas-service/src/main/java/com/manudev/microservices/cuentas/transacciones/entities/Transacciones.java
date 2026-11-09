@@ -23,7 +23,7 @@ public class Transacciones {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "transaccion_id")
-    private Long transaccion_id;
+    private Long transaccionId;
     // Titulares al registrar el movimiento; no se recalculan al consultar.
     @Positive
     @Column(name = "socio_id", updatable = false)

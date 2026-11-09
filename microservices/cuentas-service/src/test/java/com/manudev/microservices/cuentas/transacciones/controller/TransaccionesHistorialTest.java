@@ -46,7 +46,7 @@ class TransaccionesHistorialTest {
         var saved = new Transacciones[1];
         when(transactions.save(any())).thenAnswer(call -> {
             saved[0] = call.getArgument(0);
-            saved[0].setTransaccion_id(7L);
+            saved[0].setTransaccionId(7L);
             saved[0].prePersist();
             return saved[0];
         });
@@ -65,7 +65,7 @@ class TransaccionesHistorialTest {
                 .andExpect(jsonPath("$.socioDestinoId").value(20));
     }
     @Test void legacyRecordDoesNotInventHistoricalOwnerOrAuthor() throws Exception {
-        var transaction = Transacciones.builder().transaccion_id(7L).cuenta(account(1, 99))
+        var transaction = Transacciones.builder().transaccionId(7L).cuenta(account(1, 99))
                 .tipo_transaccion(TipoTransacciones.DEPOSITO).build();
         when(transactions.findById(7L)).thenReturn(Optional.of(transaction));
         mvc.perform(get("/api/transacciones/7")).andExpect(status().isOk())

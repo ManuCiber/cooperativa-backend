@@ -45,6 +45,10 @@ public class ProductoFinanciero {
     @Column(name = "estado", nullable = false, length = 20)
     private EstadoProducto estado;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name="tipo_producto", nullable = false, length = 20)
+    private TipoProducto tipoProducto;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -58,6 +62,9 @@ public class ProductoFinanciero {
         updatedAt = now;
         if (estado == null) {
             estado = EstadoProducto.ACTIVO;
+        }
+        if (tipoProducto == null) {
+            tipoProducto = TipoProducto.PRESTAMOS;
         }
     }
 

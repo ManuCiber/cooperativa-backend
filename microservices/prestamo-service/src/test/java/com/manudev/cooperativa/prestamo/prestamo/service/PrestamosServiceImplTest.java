@@ -5,8 +5,12 @@ import com.manudev.cooperativa.prestamo.prestamo.entities.*;
 import com.manudev.cooperativa.prestamo.prestamo.mapper.PrestamosMapper;
 import com.manudev.cooperativa.prestamo.prestamo.repository.PrestamosRepository;
 import com.manudev.cooperativa.prestamo.prestamo.service.impl.PrestamosServiceImpl;
+import com.manudev.cooperativa.prestamo.prestamo.service.impl.CronogramaPagosService;
+import com.manudev.cooperativa.prestamo.PagoPrestamos.repositories.PagoPrestamosRepository;
+import com.manudev.cooperativa.prestamo.PagoPrestamos.entities.PagoPrestamos;
 import com.manudev.cooperativa.prestamo.productoFinanciero.entity.EstadoProducto;
 import com.manudev.cooperativa.prestamo.productoFinanciero.entity.ProductoFinanciero;
+import com.manudev.cooperativa.prestamo.productoFinanciero.entity.TipoProducto;
 import com.manudev.cooperativa.prestamo.productoFinanciero.repository.ProductoFinancieroRepository;
 import jakarta.validation.*;
 import org.junit.jupiter.api.*;
@@ -20,6 +24,8 @@ class PrestamosServiceImplTest {
     static ValidatorFactory factory;
     PrestamosRepository repository;
     ProductoFinancieroRepository productoFinancieroRepository;
+    PagoPrestamosRepository pagosRepository;
+    CronogramaPagosService cronogramaPagosService;
     IPrestamosService service;
     PrestamosMapper mapper = new PrestamosMapper();
 
@@ -29,12 +35,16 @@ class PrestamosServiceImplTest {
     @BeforeEach void setup() {
         repository = mock(PrestamosRepository.class);
         productoFinancieroRepository = mock(ProductoFinancieroRepository.class);
-        service = new PrestamosServiceImpl(repository, mapper, factory.getValidator(), productoFinancieroRepository);
+        pagosRepository = mock(PagoPrestamosRepository.class);
+        cronogramaPagosService = new CronogramaPagosService(pagosRepository);
+        service = new PrestamosServiceImpl(repository, mapper, factory.getValidator(),
+                productoFinancieroRepository, pagosRepository, cronogramaPagosService);
 
         var producto = ProductoFinanciero.builder()
                 .id(2L)
                 .nombre("Credito Personal")
                 .estado(EstadoProducto.ACTIVO)
+                .tipoProducto(TipoProducto.PRESTAMOS)
                 .montoMinimo(new BigDecimal("100.00"))
                 .montoMaximo(new BigDecimal("50000.00"))
                 .plazoMinimo(1)
@@ -94,6 +104,7 @@ class PrestamosServiceImplTest {
                 .id(2L)
                 .nombre("Credito Personal")
                 .estado(EstadoProducto.INACTIVO)
+                .tipoProducto(TipoProducto.PRESTAMOS)
                 .montoMinimo(new BigDecimal("100.00"))
                 .montoMaximo(new BigDecimal("50000.00"))
                 .plazoMinimo(1)
@@ -101,6 +112,24 @@ class PrestamosServiceImplTest {
                 .build();
         when(productoFinancieroRepository.findById(2L)).thenReturn(Optional.of(inactiveProduct));
         status(409, () -> service.createPrestamo(request()));
+    }
+
+    @Test void rejectsProductsThatAreNotLoanProducts() {
+        var savingsProduct = ProductoFinanciero.builder()
+                .id(2L)
+                .nombre("Ahorro")
+                .estado(EstadoProducto.ACTIVO)
+                .tipoProducto(TipoProducto.AHORROS)
+                .montoMinimo(new BigDecimal("100.00"))
+                .montoMaximo(new BigDecimal("50000.00"))
+                .plazoMinimo(1)
+                .plazoMaximo(60)
+                .build();
+        when(productoFinancieroRepository.findById(2L)).thenReturn(Optional.of(savingsProduct));
+
+        status(409, () -> service.createPrestamo(request()));
+        status(409, () -> service.updatePrestamo(3L, request()));
+        verifyNoInteractions(repository);
     }
 
     @Test void rejectsLoanWhenAmountOrTermExceedsLimits() {
@@ -163,6 +192,34 @@ class PrestamosServiceImplTest {
         assertEquals(new BigDecimal("1000.25"), result.getMonto_solicitado());
         verify(repository, never()).delete(any());
         verify(repository, never()).deleteById(any());
+    }
+
+    @Test void approvalAndDisbursementGenerateScheduleAndActivateLoan() {
+        Prestamos prestamo = stored();
+        when(repository.findByIdForUpdate(3L)).thenReturn(Optional.of(prestamo));
+        when(repository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        var aprobado = service.aprobarPrestamo(3L, new BigDecimal("900.00"));
+        assertEquals(EstadoPrestamos.APROBADO, aprobado.getEstado());
+        assertEquals(new BigDecimal("900.00"), aprobado.getMonto_aprobado());
+        assertNotNull(aprobado.getFecha_aprobacion());
+
+        when(pagosRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
+        var desembolsado = service.desembolsarPrestamo(3L);
+
+        assertEquals(EstadoPrestamos.ACTIVO, desembolsado.getEstado());
+        assertNotNull(desembolsado.getFecha_desembolso());
+        verify(pagosRepository).saveAll(argThat(this::hasTwelveInstallments));
+    }
+
+    private boolean hasTwelveInstallments(Iterable<PagoPrestamos> cuotas) {
+        int expectedNumber = 1;
+        for (PagoPrestamos cuota : cuotas) {
+            if (cuota.getNumero_cuota() != expectedNumber) {
+                return false;
+            }
+            expectedNumber++;
+        }
+        return expectedNumber == 13;
     }
 
     @Test void listsAndRetrievesMappedLoans() {

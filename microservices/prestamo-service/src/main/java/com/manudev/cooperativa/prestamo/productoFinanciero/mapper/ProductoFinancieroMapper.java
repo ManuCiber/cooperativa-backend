@@ -25,6 +25,9 @@ public class ProductoFinancieroMapper {
         if (request.getEstado() != null) {
             producto.setEstado(request.getEstado());
         }
+        if(request.getTipoProducto() !=null){
+            producto.setTipoProducto(request.getTipoProducto());
+        }
     }
 
     public ProductoFinancieroResponse toResponse(ProductoFinanciero producto) {
@@ -38,6 +41,7 @@ public class ProductoFinancieroMapper {
                 .montoMinimo(producto.getMontoMinimo())
                 .montoMaximo(producto.getMontoMaximo())
                 .estado(producto.getEstado())
+                .tipoProducto(producto.getTipoProducto())
                 .createdAt(producto.getCreatedAt())
                 .updatedAt(producto.getUpdatedAt())
                 .build();

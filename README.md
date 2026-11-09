@@ -34,6 +34,22 @@ docker compose up --build
 
 La primera ejecución compila las aplicaciones en imágenes Docker y puede tardar varios minutos. El contenedor PostgreSQL inicializa una base independiente por microservicio; Flyway crea el esquema y las tablas al iniciar cada servicio. Eureka está disponible en `http://localhost:8761` y el gateway en `http://localhost:8080`.
 
+Cada aplicación tiene su propio `Dockerfile` y Docker Compose utiliza esos archivos para construir las imágenes. El `Dockerfile` de la raíz también permite construir una imagen independiente para un solo microservicio, compilando sus dependencias Maven y copiando únicamente su JAR ejecutable. Por defecto construye `socio-service`:
+
+```bash
+docker build -t socio-service .
+```
+
+Para elegir otro módulo, indique ambos argumentos desde la raíz del repositorio:
+
+```bash
+docker build -t usuarios-service \
+  --build-arg MODULE=microservices/usuarios-service \
+  --build-arg MODULE_DIR=microservices/usuarios-service .
+```
+
+Las imágenes de aplicación ejecutan un único servicio. Los demás servicios y sus dependencias, como PostgreSQL, MongoDB, Eureka y Config Server, se configuran externamente mediante las variables de entorno correspondientes o Docker Compose; no se agrupan como procesos dentro de un contenedor. `common-web` es una biblioteca, no un servicio ejecutable; su `Dockerfile` genera una imagen de artefacto con el JAR en `/common-web.jar`.
+
 Las aplicaciones se pueden iniciar en conjunto con `docker compose up --build <servicio>` desde la raíz (por ejemplo, `docker compose up --build socio-service`); las dependencias compartidas declaradas en el Compose principal se iniciarán automáticamente. Para levantar o detener toda la plataforma, use los comandos desde la raíz.
 
 Discovery Server define su puerto (`8761`) y su configuración Eureka localmente; no depende del Config Server para arrancar. En Docker Compose, Eureka tiene desactivada la autopreservación para que retire instancias cuyo lease vence y no mantenga instancias caídas como `UP`. Este ajuste es sólo para desarrollo; en producción debe mantenerse la autopreservación y resolverse la causa de los heartbeats perdidos (conectividad, pausas o capacidad del servidor). Si inicia Discovery Server directamente fuera de Compose, aplique `EUREKA_SERVER_ENABLE_SELF_PRESERVATION=false` sólo en ese entorno local.
@@ -93,6 +109,8 @@ El módulo se registra automáticamente mediante Spring Boot y contiene una úni
 La configuración funcional es independiente del `config-server`: contiene datos generales, políticas predeterminadas de préstamos y activación de notificaciones. Se inicializa una sola vez con `POST /api/v1/configuracion`, se consulta con `GET /api/v1/configuracion` y se actualizan secciones mediante `PATCH /api/v1/configuracion/general`, `/api/v1/configuracion/politicas-prestamo` y `/api/v1/configuracion/notificaciones`. El historial paginado está en `GET /api/v1/configuracion/historial` (solo administrador). Las políticas son valores predeterminados y no reemplazan las condiciones de cada producto financiero.
 
 El cuerpo de inicialización requiere los objetos `general`, `loanPolicies` y `notifications`. Los PATCH aceptan solo los campos que se quieran cambiar; se rechaza un parche vacío. La tasa de interés se expresa como porcentaje entre 0 y 100 y la moneda como código ISO de tres letras en mayúsculas.
+
+Las reglas iniciales de tasa, amortización, vencimientos, pagos y mora de los préstamos están documentadas en [`microservices/prestamo-service/REGLAS_PRESTAMOS.md`](microservices/prestamo-service/REGLAS_PRESTAMOS.md).
 
 ## Kafka
 
