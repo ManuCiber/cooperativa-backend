@@ -23,6 +23,8 @@ public interface PagoPrestamosService {
     /** Marca una cuota como pagada y registra la fecha del pago. */
     PagoPrestamosResponse registrarPago(Long pagoId);
 
-    /** Soft delete: cambia el estado a ELIMINADO sin borrar la fila. */
+    /** Se conserva por compatibilidad; las cuotas del cronograma no se pueden eliminar. */
     void eliminarPago(Long pagoId);
+
+    void revisarEstadosMora();
 }

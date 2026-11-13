@@ -7,13 +7,16 @@ import com.manudev.cooperativa.prestamo.PagoPrestamos.entities.PagoPrestamos;
 import com.manudev.cooperativa.prestamo.PagoPrestamos.mapper.PagoPrestamosMapper;
 import com.manudev.cooperativa.prestamo.PagoPrestamos.repositories.PagoPrestamosRepository;
 import com.manudev.cooperativa.prestamo.PagoPrestamos.services.PagoPrestamosService;
+import com.manudev.cooperativa.prestamo.prestamo.entities.EstadoPrestamos;
+import com.manudev.cooperativa.prestamo.prestamo.entities.Prestamos;
+import com.manudev.cooperativa.prestamo.prestamo.repository.PrestamosRepository;
 import lombok.RequiredArgsConstructor;
+import java.time.Clock;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -24,20 +27,14 @@ public class PagoPrestamoServiceImpl implements PagoPrestamosService {
 
     private final PagoPrestamosRepository repository;
     private final PagoPrestamosMapper mapper;
+    private final PrestamosRepository prestamosRepository;
+    private final Clock clock;
 
     @Override
     @Transactional
     public PagoPrestamosResponse crear(PagoPrestamosRequest request) {
-        if (repository.existsCuota(request.getPrestamoId(), request.getNumeroCuota(), EstadoPagosPrestamo.ELIMINADO)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Ya existe la cuota " + request.getNumeroCuota() + " para el prestamo " + request.getPrestamoId());
-        }
-        if (request.getMontoInteres().compareTo(BigDecimal.valueOf(request.getNumeroCuota())) > 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "El monto de interes no puede ser mayor que el monto de la cuota");
-        }
-        PagoPrestamos guardado = repository.save(mapper.toEntity(request));
-        return mapper.toResponse(guardado);
+        throw new ResponseStatusException(HttpStatus.CONFLICT,
+                "Las cuotas se generan automáticamente al desembolsar el préstamo");
     }
 
     @Override
@@ -60,7 +57,7 @@ public class PagoPrestamoServiceImpl implements PagoPrestamosService {
     @Override
     @Transactional(readOnly = true)
     public List<PagoPrestamosResponse> listarVencidas() {
-        return repository.findVencidas(EstadoPagosPrestamo.PENDIENTE, LocalDate.now()).stream()
+        return repository.findVencidas(EstadoPagosPrestamo.PENDIENTE, LocalDate.now(clock)).stream()
                 .map(mapper::toResponse)
                 .toList();
     }
@@ -77,26 +74,60 @@ public class PagoPrestamoServiceImpl implements PagoPrestamosService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "La cuota ya fue pagada");
         }
 
+        Prestamos prestamo = obtenerPrestamo(pago.getPrestamo_id());
+        if (prestamo.getEstado() != EstadoPrestamos.ACTIVO
+                && prestamo.getEstado() != EstadoPrestamos.EN_MORA) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Solo se pueden registrar pagos de préstamos activos o en mora");
+        }
         pago.setEstado(EstadoPagosPrestamo.PAGADO);
-        pago.setFecha_pago(LocalDateTime.now());
-        return mapper.toResponse(repository.save(pago));
+        pago.setFecha_pago(LocalDateTime.now(clock));
+        PagoPrestamos guardado = repository.save(pago);
+        actualizarEstadoPrestamo(prestamo);
+        return mapper.toResponse(guardado);
     }
 
     @Override
     @Transactional
     public void eliminarPago(Long pagoId) {
-        PagoPrestamos pago = findOrThrow(pagoId);
+        findOrThrow(pagoId);
+        throw new ResponseStatusException(HttpStatus.CONFLICT,
+                "Las cuotas del cronograma desembolsado no se pueden eliminar");
+    }
 
-        if (pago.getEstado() == EstadoPagosPrestamo.PAGADO) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "No se puede eliminar una cuota ya pagada");
-        }
-        if (pago.getEstado() == EstadoPagosPrestamo.ELIMINADO) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "La cuota ya esta eliminada");
+    @Override
+    @Transactional
+    public void revisarEstadosMora() {
+        List<Prestamos> prestamos = prestamosRepository.findByEstadoIn(
+                List.of(EstadoPrestamos.ACTIVO, EstadoPrestamos.EN_MORA));
+        prestamos.forEach(this::actualizarEstadoPrestamo);
+    }
+
+    private void actualizarEstadoPrestamo(Prestamos prestamo) {
+        if (prestamo.getEstado() != EstadoPrestamos.ACTIVO
+                && prestamo.getEstado() != EstadoPrestamos.EN_MORA) {
+            return;
         }
 
-        // Soft delete: solo cambia el estado, los datos se conservan
-        pago.setEstado(EstadoPagosPrestamo.ELIMINADO);
-        repository.save(pago);
+        boolean tienePendientes = repository.existsByPrestamoAndEstado(
+                prestamo.getPrestamo_id(), EstadoPagosPrestamo.PENDIENTE);
+        if (!tienePendientes) {
+            boolean tienePagosRegistrados = repository.existsByPrestamoAndEstado(
+                    prestamo.getPrestamo_id(), EstadoPagosPrestamo.PAGADO);
+            prestamo.setEstado(tienePagosRegistrados ? EstadoPrestamos.PAGADO : EstadoPrestamos.ACTIVO);
+        } else if (repository.existsVencidaByPrestamo(
+                prestamo.getPrestamo_id(), EstadoPagosPrestamo.PENDIENTE, LocalDate.now(clock))) {
+            prestamo.setEstado(EstadoPrestamos.EN_MORA);
+        } else {
+            prestamo.setEstado(EstadoPrestamos.ACTIVO);
+        }
+        prestamosRepository.save(prestamo);
+    }
+
+    private Prestamos obtenerPrestamo(Long prestamoId) {
+        return prestamosRepository.findById(prestamoId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "No existe el préstamo con id " + prestamoId));
     }
 
     private PagoPrestamos findOrThrow(Long pagoId) {

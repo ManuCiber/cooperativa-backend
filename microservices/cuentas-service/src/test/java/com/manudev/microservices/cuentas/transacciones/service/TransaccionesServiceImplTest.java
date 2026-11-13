@@ -41,7 +41,7 @@ class TransaccionesServiceImplTest {
     void saveTransaction() {
         when(transactions.save(any())).thenAnswer(invocation -> {
             Transacciones transaction = invocation.getArgument(0);
-            transaction.setTransaccion_id(9L);
+            transaction.setTransaccionId(9L);
             transaction.prePersist();
             return transaction;
         });
@@ -139,12 +139,16 @@ class TransaccionesServiceImplTest {
         verifyNoInteractions(cuentas, transactions);
     }
     @Test void readsHistoryAndFindsTransaction() {
-        var transaction = Transacciones.builder().transaccion_id(9L).cuenta(account(2L,"100"))
+        var transaction = Transacciones.builder().transaccionId(9L).cuenta(account(2L,"100"))
                 .tipo_transaccion(TipoTransacciones.DEPOSITO).monto(BigDecimal.TEN).build();
         when(transactions.findById(9L)).thenReturn(Optional.of(transaction));
         when(transactions.findAll(any(Sort.class))).thenReturn(List.of(transaction));
         assertEquals(9L, service.getTransaccionById(9L).getTransaccionId());
         assertEquals(9L, service.getTransacciones().get(0).getTransaccionId());
+        var sortCaptor = org.mockito.ArgumentCaptor.forClass(Sort.class);
+        verify(transactions).findAll(sortCaptor.capture());
+        assertEquals(List.of("fecha", "transaccionId"),
+                sortCaptor.getValue().stream().map(Sort.Order::getProperty).toList());
     }
     @Test void missingOrInvalidTransactionIdIsRejected() {
         assertStatus(404, () -> service.getTransaccionById(9L));

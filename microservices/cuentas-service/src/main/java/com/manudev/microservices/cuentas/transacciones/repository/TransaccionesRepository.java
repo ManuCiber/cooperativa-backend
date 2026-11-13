@@ -12,7 +12,7 @@ public interface TransaccionesRepository extends JpaRepository<Transacciones, Lo
             SELECT t FROM Transacciones t
             WHERE (:socioId IS NULL OR t.socioId = :socioId OR t.socioDestinoId = :socioId)
               AND (:tipo IS NULL OR t.tipo_transaccion = :tipo)
-            ORDER BY t.fecha DESC, t.transaccion_id DESC
+            ORDER BY t.fecha DESC, t.transaccionId DESC
             """)
     List<Transacciones> findByFiltros(@Param("socioId") Long socioId, @Param("tipo") TipoTransacciones tipo);
 }

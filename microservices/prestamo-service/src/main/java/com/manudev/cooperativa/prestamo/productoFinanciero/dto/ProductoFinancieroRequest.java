@@ -1,6 +1,7 @@
 package com.manudev.cooperativa.prestamo.productoFinanciero.dto;
 
 import com.manudev.cooperativa.prestamo.productoFinanciero.entity.EstadoProducto;
+import com.manudev.cooperativa.prestamo.productoFinanciero.entity.TipoProducto;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -27,7 +28,7 @@ public class ProductoFinancieroRequest {
 
     @NotNull(message = "La tasa de interés es obligatoria")
     @PositiveOrZero(message = "La tasa de interés no puede ser negativa")
-    @Digits(integer = 5, fraction = 2, message = "La tasa admite hasta 5 enteros y 2 decimales")
+    @Digits(integer = 3, fraction = 2, message = "La tasa admite hasta 3 enteros y 2 decimales")
     private BigDecimal tasaInteres;
 
     @NotNull(message = "El plazo mínimo es obligatorio")
@@ -40,14 +41,17 @@ public class ProductoFinancieroRequest {
 
     @NotNull(message = "El monto mínimo es obligatorio")
     @Positive(message = "El monto mínimo debe ser mayor que cero")
-    @Digits(integer = 12, fraction = 2, message = "El monto mínimo admite hasta 12 enteros y 2 decimales")
+    @Digits(integer = 10, fraction = 2, message = "El monto mínimo admite hasta 10 enteros y 2 decimales")
     private BigDecimal montoMinimo;
 
     @NotNull(message = "El monto máximo es obligatorio")
     @Positive(message = "El monto máximo debe ser mayor que cero")
-    @Digits(integer = 12, fraction = 2, message = "El monto máximo admite hasta 12 enteros y 2 decimales")
+    @Digits(integer = 10, fraction = 2, message = "El monto máximo admite hasta 10 enteros y 2 decimales")
     private BigDecimal montoMaximo;
 
     @Builder.Default
     private EstadoProducto estado = EstadoProducto.ACTIVO;
+
+    @Builder.Default
+    private TipoProducto tipoProducto = TipoProducto.PRESTAMOS;
 }

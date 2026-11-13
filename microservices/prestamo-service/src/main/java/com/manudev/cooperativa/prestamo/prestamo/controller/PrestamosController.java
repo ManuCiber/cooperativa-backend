@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @RestController
@@ -41,5 +42,17 @@ public class PrestamosController {
     @PatchMapping("/{id}/cancelar")
     public ResponseEntity<PrestamosResponse> cancelarPrestamo(@PathVariable Long id) {
         return ResponseEntity.ok(prestamosService.cancelarPrestamo(id));
+    }
+
+    @PatchMapping("/{id}/aprobar")
+    public ResponseEntity<PrestamosResponse> aprobarPrestamo(
+            @PathVariable Long id,
+            @RequestParam BigDecimal montoAprobado) {
+        return ResponseEntity.ok(prestamosService.aprobarPrestamo(id, montoAprobado));
+    }
+
+    @PatchMapping("/{id}/desembolsar")
+    public ResponseEntity<PrestamosResponse> desembolsarPrestamo(@PathVariable Long id) {
+        return ResponseEntity.ok(prestamosService.desembolsarPrestamo(id));
     }
 }

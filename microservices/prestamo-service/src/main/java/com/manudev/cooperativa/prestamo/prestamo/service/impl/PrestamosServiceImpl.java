@@ -5,8 +5,10 @@ import com.manudev.cooperativa.prestamo.prestamo.entities.*;
 import com.manudev.cooperativa.prestamo.prestamo.mapper.PrestamosMapper;
 import com.manudev.cooperativa.prestamo.prestamo.repository.PrestamosRepository;
 import com.manudev.cooperativa.prestamo.prestamo.service.IPrestamosService;
+import com.manudev.cooperativa.prestamo.PagoPrestamos.repositories.PagoPrestamosRepository;
 import com.manudev.cooperativa.prestamo.productoFinanciero.entity.EstadoProducto;
 import com.manudev.cooperativa.prestamo.productoFinanciero.entity.ProductoFinanciero;
+import com.manudev.cooperativa.prestamo.productoFinanciero.entity.TipoProducto;
 import com.manudev.cooperativa.prestamo.productoFinanciero.repository.ProductoFinancieroRepository;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +17,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -26,6 +30,8 @@ public class PrestamosServiceImpl implements IPrestamosService {
     private final PrestamosMapper prestamosMapper;
     private final Validator validator;
     private final ProductoFinancieroRepository productoFinancieroRepository;
+    private final PagoPrestamosRepository pagosRepository;
+    private final CronogramaPagosService cronogramaPagosService;
 
     @Override
     @Transactional
@@ -67,11 +73,66 @@ public class PrestamosServiceImpl implements IPrestamosService {
         return prestamosMapper.toResponse(prestamosRepository.saveAndFlush(prestamo));
     }
 
+    @Override
+    @Transactional
+    public PrestamosResponse aprobarPrestamo(Long id, BigDecimal montoAprobado) {
+        Prestamos prestamo = findByIdForUpdate(id);
+        if (prestamo.getEstado() != EstadoPrestamos.SOLICITADO) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Solo se pueden aprobar préstamos en estado SOLICITADO");
+        }
+        if (montoAprobado == null || montoAprobado.signum() <= 0
+                || montoAprobado.stripTrailingZeros().scale() > 2
+                || montoAprobado.compareTo(prestamo.getMonto_solicitado()) > 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "El monto aprobado debe ser positivo, tener hasta dos decimales y no superar el monto solicitado");
+        }
+
+        prestamo.setMonto_aprobado(montoAprobado);
+        prestamo.setFecha_aprobacion(LocalDateTime.now());
+        prestamo.setEstado(EstadoPrestamos.APROBADO);
+        return prestamosMapper.toResponse(prestamosRepository.saveAndFlush(prestamo));
+    }
+
+    @Override
+    @Transactional
+    public PrestamosResponse desembolsarPrestamo(Long id) {
+        Prestamos prestamo = findByIdForUpdate(id);
+        if (prestamo.getEstado() != EstadoPrestamos.APROBADO) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Solo se pueden desembolsar préstamos en estado APROBADO");
+        }
+        if (pagosRepository.existsAnyByPrestamo(id)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "El préstamo ya tiene un cronograma de pagos");
+        }
+
+        prestamo.setFecha_desembolso(LocalDateTime.now());
+        prestamo.setEstado(EstadoPrestamos.DESEMBOLSADO);
+        prestamosRepository.saveAndFlush(prestamo);
+        try {
+            cronogramaPagosService.generar(prestamo);
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "No fue posible generar el cronograma: " + exception.getMessage(), exception);
+        }
+        prestamo.setEstado(EstadoPrestamos.ACTIVO);
+        return prestamosMapper.toResponse(prestamosRepository.saveAndFlush(prestamo));
+    }
+
     private Prestamos findById(Long id) {
         if (id == null || id <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El ID del prestamo debe ser positivo");
         }
         return prestamosRepository.findById(id).orElseThrow(() ->
+                new ResponseStatusException(HttpStatus.NOT_FOUND, "Prestamo no encontrado con ID: " + id));
+    }
+
+    private Prestamos findByIdForUpdate(Long id) {
+        if (id == null || id <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El ID del prestamo debe ser positivo");
+        }
+        return prestamosRepository.findByIdForUpdate(id).orElseThrow(() ->
                 new ResponseStatusException(HttpStatus.NOT_FOUND, "Prestamo no encontrado con ID: " + id));
     }
 
@@ -107,6 +168,11 @@ public class PrestamosServiceImpl implements IPrestamosService {
         if (producto.getEstado() != EstadoProducto.ACTIVO) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "No se pueden solicitar préstamos de un producto financiero inactivo");
+        }
+
+        if (producto.getTipoProducto() != TipoProducto.PRESTAMOS) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Solo se pueden solicitar préstamos de productos financieros de tipo PRESTAMOS");
         }
 
         if (request.getMonto_solicitado() != null) {

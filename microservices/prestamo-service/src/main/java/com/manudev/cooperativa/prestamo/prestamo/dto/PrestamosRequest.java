@@ -28,8 +28,8 @@ public class PrestamosRequest {
             message = "El monto admite hasta 16 enteros y 2 decimales")
     private BigDecimal monto_solicitado;
 
-    @NotNull(message = "La tasa de interes es obligatoria")
-    @PositiveOrZero(message = "La tasa de interes no puede ser negativa")
+    @NotNull(message = "La tasa de interes anual es obligatoria")
+    @PositiveOrZero(message = "La tasa de interes anual no puede ser negativa")
     @Digits(integer = 5, fraction = 4,
             message = "La tasa admite hasta 5 enteros y 4 decimales")
     private BigDecimal tasa_interes;

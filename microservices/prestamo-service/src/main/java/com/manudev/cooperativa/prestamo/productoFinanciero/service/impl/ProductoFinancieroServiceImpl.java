@@ -4,6 +4,7 @@ import com.manudev.cooperativa.prestamo.productoFinanciero.dto.ProductoFinancier
 import com.manudev.cooperativa.prestamo.productoFinanciero.dto.ProductoFinancieroResponse;
 import com.manudev.cooperativa.prestamo.productoFinanciero.entity.EstadoProducto;
 import com.manudev.cooperativa.prestamo.productoFinanciero.entity.ProductoFinanciero;
+import com.manudev.cooperativa.prestamo.productoFinanciero.entity.TipoProducto;
 import com.manudev.cooperativa.prestamo.productoFinanciero.mapper.ProductoFinancieroMapper;
 import com.manudev.cooperativa.prestamo.productoFinanciero.repository.ProductoFinancieroRepository;
 import com.manudev.cooperativa.prestamo.productoFinanciero.service.IProductoFinancieroService;
@@ -35,6 +36,10 @@ public class ProductoFinancieroServiceImpl implements IProductoFinancieroService
         ProductoFinanciero producto = productoFinancieroMapper.toEntity(request);
         if (producto.getEstado() == null) {
             producto.setEstado(EstadoProducto.ACTIVO);
+        }
+
+        if(producto.getTipoProducto()== null){
+            producto.setTipoProducto(TipoProducto.PRESTAMOS);
         }
 
         return productoFinancieroMapper.toResponse(productoFinancieroRepository.saveAndFlush(producto));

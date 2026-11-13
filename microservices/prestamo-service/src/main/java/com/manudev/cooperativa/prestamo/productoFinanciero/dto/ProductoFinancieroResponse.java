@@ -1,6 +1,7 @@
 package com.manudev.cooperativa.prestamo.productoFinanciero.dto;
 
 import com.manudev.cooperativa.prestamo.productoFinanciero.entity.EstadoProducto;
+import com.manudev.cooperativa.prestamo.productoFinanciero.entity.TipoProducto;
 import lombok.*;
 
 import java.math.BigDecimal;
@@ -21,6 +22,7 @@ public class ProductoFinancieroResponse {
     private BigDecimal montoMinimo;
     private BigDecimal montoMaximo;
     private EstadoProducto estado;
+    private TipoProducto tipoProducto;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

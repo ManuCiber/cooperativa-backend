@@ -41,6 +41,12 @@ public class PagoPrestamos {
     @Column(name = "monto_cuota", nullable = false, precision = 18, scale = 2)
     private BigDecimal monto_cuota;
 
+    @NotNull
+    @PositiveOrZero
+    @Digits(integer = 16, fraction = 2)
+    @Column(name = "monto_capital", nullable = false, precision = 18, scale = 2)
+    private BigDecimal monto_capital;
+
     @NotNull(message = "El monto de interes es obligatorio")
     @PositiveOrZero(message = "El monto de interes no puede ser negativo")
     @Digits(integer = 16, fraction = 2, message = "El monto de interes admite hasta 16 enteros y 2 decimales")
